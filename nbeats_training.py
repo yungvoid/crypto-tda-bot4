@@ -72,31 +72,32 @@ def train_nbeats(X_train, y_train, X_val, y_val, input_dim, model_path, epochs=2
     print(f"Model saved to {model_path}")
 
 if __name__ == "__main__":
-    cryptos = ['BTC_USDT', 'ETH_USDT', 'ADA_USDT']
-    window_sizes = [30, 60, 120]
-    target_col = 'close'
-    os.makedirs('models', exist_ok=True)
+    import argparse
+    parser = argparse.ArgumentParser(description="Train N-BEATS models for specified forecast intervals.")
+    parser.add_argument("symbol", type=str, help="Symbol to train on (e.g., XNO_USDT)")
+    parser.add_argument("--window_sizes", type=int, nargs='+', default=[30, 60, 120], help="TDA window sizes to use")
+    parser.add_argument("--forecast_intervals", type=int, nargs='+', default=[1], help="Forecast intervals (in steps, e.g., 1 for next, 5 for 5 steps ahead)")
+    parser.add_argument("--features_path", type=str, default=None, help="Path to features CSV (default: processed_data/{symbol}_features.csv)")
+    args = parser.parse_args()
 
-    for crypto in cryptos:
-        df = pd.read_csv(f'processed_data/{crypto}_features.csv')
-        for ws in window_sizes:
-            # Select TDA features for this window size
-            feature_cols = [col for col in df.columns if f'tda_ws{ws}_' in col]
-            features = df[feature_cols].values
-            # Target: next-step close price (shifted by -1)
-            target = df[target_col].shift(-1).values
-            # Remove rows with NaN (from padding or last row)
+    os.makedirs('models', exist_ok=True)
+    features_path = args.features_path or f'processed_data/{args.symbol}_features.csv'
+    df = pd.read_csv(features_path)
+    target_col = 'close'
+    for ws in args.window_sizes:
+        feature_cols = [col for col in df.columns if f'tda_ws{ws}_' in col]
+        features = df[feature_cols].values
+        for interval in args.forecast_intervals:
+            # Target: close price shifted by -interval
+            target = df[target_col].shift(-interval).values
             mask = ~np.isnan(features).any(axis=1) & ~np.isnan(target)
             X = features[mask]
             y = target[mask]
-            # Train/test split
             X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, shuffle=False)
-            # Scale features
             scaler = StandardScaler()
             X_train = scaler.fit_transform(X_train)
             X_val = scaler.transform(X_val)
-            # Train model
-            model_path = f'models/{crypto}_ws{ws}_nbeats.pth'
-            print(f"Training N-BEATS for {crypto}, window size {ws}...")
+            model_path = f'models/{args.symbol}_ws{ws}_f{interval}_nbeats.pth'
+            print(f"Training N-BEATS for {args.symbol}, window size {ws}, forecast interval {interval}...")
             train_nbeats(X_train, y_train, X_val, y_val, X_train.shape[1], model_path)
     print("All models trained and saved.")

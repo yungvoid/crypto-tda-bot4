@@ -41,54 +41,58 @@ def create_tda_features(data, window_size, stride):
     return features_reshaped
 
 if __name__ == "__main__":
-    cryptos = ['BTC_USDT', 'ETH_USDT', 'ADA_USDT']
-    window_sizes = [30, 60, 120]  # e.g., 30, 60, and 120 minutes
-    stride = 1
+    import argparse
+    parser = argparse.ArgumentParser(description="TDA feature engineering for a single symbol.")
+    parser.add_argument("symbol", type=str, help="Symbol to process (e.g., XNO_USDT)")
+    parser.add_argument("--window_sizes", type=int, nargs='+', default=[30, 60, 120], help="TDA window sizes to use")
+    parser.add_argument("--stride", type=int, default=1, help="Stride for sliding window")
+    parser.add_argument("--input_path", type=str, default=None, help="Path to input CSV (default: data/{symbol}.csv)")
+    parser.add_argument("--output_path", type=str, default=None, help="Path to output features CSV (default: processed_data/{symbol}_features.csv)")
+    args = parser.parse_args()
 
-    for crypto in cryptos:
-        print(f"Processing {crypto}...")
+    crypto = args.symbol
+    window_sizes = args.window_sizes
+    stride = args.stride
+
+    if args.input_path:
+        filepath = args.input_path
+    else:
         filepath = os.path.join('data', f'{crypto}.csv')
-        if not os.path.exists(filepath):
-            print(f"Data file not found for {crypto}. Skipping.")
+    print(f"Processing {crypto}...")
+    if not os.path.exists(filepath):
+        print(f"Data file not found: {filepath}. Exiting.")
+        exit(1)
+
+    df = pd.read_csv(filepath)
+    time_series = df['close'].values
+
+    all_features = []
+    for ws in window_sizes:
+        if ws > len(time_series):
+            print(f"[WARN] Skipping window size {ws}: not enough data points ({len(time_series)}).")
             continue
+        print(f"  - Creating features for window size {ws}...")
+        tda_features = create_tda_features(time_series, ws, stride)
+        feature_names = [f'tda_ws{ws}_h{i}' for i in range(tda_features.shape[1])]
+        features_df = pd.DataFrame(tda_features, columns=feature_names)
+        padding_size = len(time_series) - len(tda_features)
+        padding = pd.DataFrame(np.nan, index=range(padding_size), columns=feature_names)
+        features_df = pd.concat([padding, features_df]).reset_index(drop=True)
+        all_features.append(features_df)
 
-        df = pd.read_csv(filepath)
-        # We use the 'close' price for our time series analysis
-        time_series = df['close'].values
+    crypto_features_df = pd.concat(all_features, axis=1)
+    combined_df = pd.concat([df, crypto_features_df], axis=1)
 
-        all_features = []
-        for ws in window_sizes:
-            print(f"  - Creating features for window size {ws}...")
-            
-            # Create features for the current window size
-            tda_features = create_tda_features(time_series, ws, stride)
-            
-            # Create a DataFrame for these features
-            feature_names = [f'tda_ws{ws}_h{i}' for i in range(tda_features.shape[1])]
-            features_df = pd.DataFrame(tda_features, columns=feature_names)
-            
-            # To align features with the original time series, we need to pad the start
-            # where windows were not complete. The number of non-computable rows is
-            # (len(time_series) - len(tda_features)).
-            padding_size = len(time_series) - len(tda_features)
-            padding = pd.DataFrame(np.nan, index=range(padding_size), columns=feature_names)
-            features_df = pd.concat([padding, features_df]).reset_index(drop=True)
-
-            all_features.append(features_df)
-
-        # Concatenate features from all window sizes
-        crypto_features_df = pd.concat(all_features, axis=1)
-
-        # Combine with original data
-        combined_df = pd.concat([df, crypto_features_df], axis=1)
-
-        # Save the combined data with features
+    if args.output_path:
+        output_filename = args.output_path
+        output_dir = os.path.dirname(output_filename)
+        if output_dir and not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+    else:
         output_dir = 'processed_data'
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
-        
         output_filename = os.path.join(output_dir, f'{crypto}_features.csv')
-        combined_df.to_csv(output_filename, index=False)
-        print(f"Saved features for {crypto} to {output_filename}")
-
+    combined_df.to_csv(output_filename, index=False)
+    print(f"Saved features for {crypto} to {output_filename}")
     print("TDA feature engineering complete.")
