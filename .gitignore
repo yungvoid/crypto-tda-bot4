@@ -26,3 +26,14 @@ processed_data/
 
 # Notebooks
 .ipynb_checkpoints
+
+# Evaluation results
+evaluation_results/
+evaluation_focused_results/
+*.png
+
+# OS-specific and local artifacts
+.DS_Store
+
+# Generated plots/output directories
+plots_xno/
