@@ -2,41 +2,11 @@ import os
 import pandas as pd
 import numpy as np
 import torch
+from nbeats_model import NBeats
 import torch.nn as nn
 from torch.utils.data import DataLoader, TensorDataset
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
-
-# N-BEATS block definition (generic, as in the paper)
-class NBeatsBlock(nn.Module):
-    def __init__(self, input_dim, hidden_dim, output_dim):
-        super().__init__()
-        self.fc1 = nn.Linear(input_dim, hidden_dim)
-        self.fc2 = nn.Linear(hidden_dim, hidden_dim)
-        self.fc3 = nn.Linear(hidden_dim, hidden_dim)
-        self.fc4 = nn.Linear(hidden_dim, hidden_dim)
-        self.fc5 = nn.Linear(hidden_dim, output_dim)
-        self.relu = nn.ReLU()
-
-    def forward(self, x):
-        x = self.relu(self.fc1(x))
-        x = self.relu(self.fc2(x))
-        x = self.relu(self.fc3(x))
-        x = self.relu(self.fc4(x))
-        return self.fc5(x)
-
-class NBeats(nn.Module):
-    def __init__(self, input_dim, hidden_dim=128, output_dim=1, n_blocks=3):
-        super().__init__()
-        self.blocks = nn.ModuleList([
-            NBeatsBlock(input_dim, hidden_dim, output_dim) for _ in range(n_blocks)
-        ])
-
-    def forward(self, x):
-        y = 0
-        for block in self.blocks:
-            y = y + block(x)
-        return y
 
 def train_nbeats(X_train, y_train, X_val, y_val, input_dim, model_path, epochs=20, batch_size=64):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
