@@ -125,7 +125,3 @@ This keeps previous results intact and reproducible.
 ## Contributing / branching
 
 Active development for on‑the‑fly training is on branch `onTheFly`. Use feature branches and pull requests for changes.
-
-## License
-
-If this repository lacks a license file, default copyright applies. Consider adding an open‑source license (e.g., MIT) if you plan to share/extend.
